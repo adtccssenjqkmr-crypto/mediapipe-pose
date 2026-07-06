@@ -4,6 +4,25 @@ import {
     DrawingUtils
 } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/vision_bundle.js";
 
+// Global error handlers for debugging on mobile
+window.addEventListener("error", (event) => {
+    const status = document.getElementById("loading-status");
+    if (status) {
+        status.style.color = "#ff4a4a";
+        status.innerText = `ランタイムエラー: ${event.message}\nファイル: ${event.filename}:${event.lineno}`;
+    }
+    alert("エラーが発生しました:\n" + event.message);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+    const status = document.getElementById("loading-status");
+    if (status) {
+        status.style.color = "#ff4a4a";
+        status.innerText = `非同期エラー: ${event.reason}`;
+    }
+    alert("非同期エラーが発生しました:\n" + event.reason);
+});
+
 // DOM Elements
 const video = document.getElementById("webcam");
 const canvasElement = document.getElementById("output_canvas");
@@ -60,7 +79,9 @@ const initPoseLandmarker = async () => {
         toggleBtn.disabled = false;
     } catch (error) {
         console.error("Initialization error:", error);
-        loadingStatus.innerText = `初期化エラー: ${error.message}`;
+        loadingStatus.style.color = "#ff4a4a";
+        loadingStatus.innerText = `初期化エラー: ${error.message}\n\nモデルURLやCDNへのアクセスがブロックされている可能性があります。通信状態を確認してください。`;
+        alert("初期化エラーが発生しました:\n" + error.message);
     }
 };
 
