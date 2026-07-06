@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>AI Pose Detector</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d0e15">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon.png">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- App Loading Screen -->
+    <div id="loading-screen" class="active">
+        <div class="loader-content">
+            <div class="glow-orb"></div>
+            <div class="spinner"></div>
+            <h1>AI Pose Detector</h1>
+            <p id="loading-status">AIモデルを読み込んでいます...</p>
+        </div>
+    </div>
+
+    <!-- Main Application Container -->
+    <main class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <span class="logo-text">POSE<span class="highlight">.AI</span></span>
+            <div class="status-indicator">
+                <span class="pulse-dot active" id="status-dot"></span>
+                <span id="fps-counter">-- FPS</span>
+            </div>
+        </header>
+
+        <!-- Camera Viewport -->
+        <section class="viewport-section">
+            <div class="video-wrapper">
+                <video id="webcam" autoplay playsinline muted></video>
+                <canvas id="output_canvas"></canvas>
+            </div>
+            
+            <!-- Real-time HUD info overlay -->
+            <div class="hud-overlay">
+                <div class="hud-card" id="pose-status-card">
+                    <span class="hud-label">検出状態</span>
+                    <span class="hud-value" id="pose-detected">未検出</span>
+                </div>
+                <div class="hud-card" id="angle-card">
+                    <span class="hud-label">関節角度</span>
+                    <div class="angle-grid">
+                        <div class="angle-item">左肘: <span id="left-elbow-angle">--°</span></div>
+                        <div class="angle-item">右肘: <span id="right-elbow-angle">--°</span></div>
+                        <div class="angle-item">左膝: <span id="left-knee-angle">--°</span></div>
+                        <div class="angle-item">右膝: <span id="right-knee-angle">--°</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Control Panel (Glassmorphism) -->
+        <footer class="control-panel">
+            <div class="control-row">
+                <button id="toggle-btn" class="panel-btn primary-btn">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    <span>カメラ開始</span>
+                </button>
+                
+                <button id="switch-camera-btn" class="panel-btn secondary-btn" disabled>
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M23 4v6h-6"></path>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                    </svg>
+                    <span>カメラ切替</span>
+                </button>
+            </div>
+            
+            <div class="info-row">
+                <p>全身がカメラに収まるようにしてテストしてください。</p>
+            </div>
+        </footer>
+    </main>
+
+    <!-- Core App Logic -->
+    <script type="module" src="app.js"></script>
+    <script>
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker registered.', reg))
+                    .catch(err => console.error('Service Worker registration failed.', err));
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "AI Pose Estimator",
+  "short_name": "Pose AI",
+  "description": "Real-time AI Pose Estimation using MediaPipe",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0d0e15",
+  "theme_color": "#0d0e15",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
