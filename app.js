@@ -47,12 +47,19 @@ let drawingUtils = null;
 let frameCount = 0;
 let lastFpsUpdate = 0;
 
+// MediaPipe global class holders for module scope access
+let FilesetResolver = null;
+let PoseLandmarker = null;
+let DrawingUtils = null;
+
 // Initialize Pose Landmarker
 const initPoseLandmarker = async () => {
     try {
         loadingStatus.innerText = "MediaPipeライブラリをロード中...";
         const mediaPipe = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/vision_bundle.mjs");
-        const { PoseLandmarker, FilesetResolver, DrawingUtils } = mediaPipe;
+        FilesetResolver = mediaPipe.FilesetResolver;
+        PoseLandmarker = mediaPipe.PoseLandmarker;
+        DrawingUtils = mediaPipe.DrawingUtils;
 
         loadingStatus.innerText = "WebAssemblyリソースを取得中...";
         const vision = await FilesetResolver.forVisionTasks(
