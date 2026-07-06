@@ -18,9 +18,26 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
+    <script>
+        // App.js読み込み失敗や構文エラーなども即座に画面に表示するインラインデバッガ
+        window.addEventListener("error", (event) => {
+            const status = document.getElementById("loading-status");
+            if (status) {
+                status.style.color = "#ff4a4a";
+                status.innerText = `エラー: ${event.message}\nファイル: ${event.filename}:${event.lineno}`;
+            }
+        });
+        window.addEventListener("unhandledrejection", (event) => {
+            const status = document.getElementById("loading-status");
+            if (status) {
+                status.style.color = "#ff4a4a";
+                status.innerText = `非同期エラー: ${event.reason}`;
+            }
+        });
+    </script>
     <!-- App Loading Screen -->
     <div id="loading-screen" class="active">
         <div class="loader-content">
@@ -93,7 +110,7 @@
     </main>
 
     <!-- Core App Logic -->
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=2"></script>
     <script>
         // Register Service Worker for PWA
         if ('serviceWorker' in navigator) {
