@@ -62,6 +62,7 @@
         <!-- Camera Viewport -->
         <section class="viewport-section">
             <div class="video-wrapper">
+                <input type="file" id="video-file-input" accept="video/*" style="display: none;">
                 <video id="webcam" autoplay playsinline muted></video>
                 <canvas id="output_canvas"></canvas>
             </div>
@@ -73,12 +74,28 @@
                     <span class="hud-value" id="pose-detected">未検出</span>
                 </div>
                 <div class="hud-card" id="angle-card">
-                    <span class="hud-label">関節角度</span>
-                    <div class="angle-grid">
-                        <div class="angle-item">左肘: <span id="left-elbow-angle">--°</span></div>
-                        <div class="angle-item">右肘: <span id="right-elbow-angle">--°</span></div>
-                        <div class="angle-item">左膝: <span id="left-knee-angle">--°</span></div>
-                        <div class="angle-item">右膝: <span id="right-knee-angle">--°</span></div>
+                    <span class="hud-label">角度計測</span>
+                    <select id="joint-select" class="hud-select">
+                        <optgroup label="肘・膝・手・足 (屈曲/伸展)">
+                            <option value="elbow_flexion">肘関節 (屈曲/伸展)</option>
+                            <option value="knee_flexion">膝関節 (屈曲/伸展)</option>
+                            <option value="wrist_flexion">手関節 (屈曲/伸展)</option>
+                            <option value="ankle_flexion">足関節 (底屈/背屈)</option>
+                        </optgroup>
+                        <optgroup label="肩関節">
+                            <option value="shoulder_flexion">肩関節 (屈曲/伸展)</option>
+                            <option value="shoulder_abduction">肩関節 (内転/外転)</option>
+                            <option value="shoulder_rotation">肩関節 (内旋/外旋)</option>
+                        </optgroup>
+                        <optgroup label="股関節">
+                            <option value="hip_flexion">股関節 (屈曲/伸展)</option>
+                            <option value="hip_abduction">股関節 (内転/外転)</option>
+                            <option value="hip_rotation">股関節 (内旋/外旋)</option>
+                        </optgroup>
+                    </select>
+                    <div class="angle-display-row">
+                        <div class="angle-val-box">左: <span id="left-angle-val">--°</span></div>
+                        <div class="angle-val-box">右: <span id="right-angle-val">--°</span></div>
                     </div>
                 </div>
             </div>
@@ -103,19 +120,30 @@
                 </button>
             </div>
             
+            <div class="control-row">
+                <button id="upload-video-btn" class="panel-btn secondary-btn">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <span>動画を解析</span>
+                </button>
+            </div>
+            
             <div class="info-row">
-                <p>全身がカメラに収まるようにしてテストしてください。</p>
+                <p>全身が映るように撮影または動画選択を行ってください。</p>
             </div>
         </footer>
     </main>
 
     <!-- Core App Logic -->
-    <script type="module" src="app.js?v=4"></script>
+    <script type="module" src="app.js?v=5"></script>
     <script>
         // Register Service Worker for PWA
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js?v=4')
+                navigator.serviceWorker.register('./sw.js?v=5')
                     .then(reg => console.log('Service Worker registered.', reg))
                     .catch(err => console.error('Service Worker registration failed.', err));
             });
