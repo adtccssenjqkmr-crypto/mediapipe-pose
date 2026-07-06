@@ -51,7 +51,7 @@ let lastFpsUpdate = 0;
 const initPoseLandmarker = async () => {
     try {
         loadingStatus.innerText = "MediaPipeライブラリをロード中...";
-        const mediaPipe = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/vision_bundle.js");
+        const mediaPipe = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/vision_bundle.mjs");
         const { PoseLandmarker, FilesetResolver, DrawingUtils } = mediaPipe;
 
         loadingStatus.innerText = "WebAssemblyリソースを取得中...";
