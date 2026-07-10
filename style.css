@@ -516,3 +516,11 @@ body {
     border-radius: 16px;
     padding: 10px;
 }
+
+/* Skeleton Only toggle active mode */
+.panel-btn.active-mode {
+    background: rgba(0, 240, 255, 0.15) !important;
+    color: var(--primary) !important;
+    border-color: rgba(0, 240, 255, 0.4) !important;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+}

@@ -46,12 +46,15 @@ const chartSection = document.getElementById("chart-section");
 const closeChartBtn = document.getElementById("close-chart-btn");
 const chartSelect1 = document.getElementById("chart-select-1");
 const chartSelect2 = document.getElementById("chart-select-2");
+const showChartBtn = document.getElementById("show-chart-btn");
+const skeletonOnlyBtn = document.getElementById("skeleton-only-btn");
 
 // App State
 let poseLandmarker = undefined;
 let webcamRunning = false;
 let isVideoMode = false;
 let isImageMode = false;
+let skeletonOnlyMode = false;
 let currentFacingMode = "user"; // "user" or "environment"
 let localVideoTrack = null;
 let lastVideoTime = -1;
@@ -316,6 +319,9 @@ const saveToHistory = (time, landmarks) => {
     });
 
     analysisHistory.push(frameData);
+    if (analysisHistory.length > 0) {
+        showChartBtn.disabled = false;
+    }
 };
 
 // リアルタイム骨格検出ループ (事後解析連動・クラッシュ防止＆フレームレート最適化版)
@@ -342,6 +348,12 @@ const predictWebcam = async () => {
         try {
             const results = poseLandmarker.detectForVideo(video, startTimeMs);
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            // 骨格のみモードの時は背景を黒で塗りつぶす
+            if (skeletonOnlyMode) {
+                canvasCtx.fillStyle = "#0d0e15";
+                canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+            }
 
             if (results.landmarks && results.landmarks.length > 0) {
                 poseDetectedVal.innerText = isVideoMode ? "分析中" : "プレビュー中";
@@ -420,6 +432,7 @@ const toggleWebcam = async () => {
         poseDetectedVal.classList.remove("active");
         switchCameraBtn.disabled = true;
         recordBtn.disabled = true;
+        showChartBtn.disabled = true;
         
         // 録画中なら停止
         stopRecording();
@@ -506,6 +519,7 @@ const handleVideoUpload = async (event) => {
     // グラフのリセットと非表示
     analysisHistory = [];
     chartSection.classList.remove("active");
+    showChartBtn.disabled = true;
 
     video.src = URL.createObjectURL(file);
     video.controls = true;
@@ -543,6 +557,7 @@ const handleImageUpload = async (event) => {
     isImageMode = true;
     updateMirrorMode();
     chartSection.classList.remove("active");
+    showChartBtn.disabled = true;
 
     loadingScreen.classList.remove("inactive");
     loadingStatus.innerText = "写真を解析中...";
@@ -558,7 +573,12 @@ const handleImageUpload = async (event) => {
             canvasElement.height = img.height;
             
             // 画像を描画
-            canvasCtx.drawImage(img, 0, 0, img.width, img.height);
+            if (skeletonOnlyMode) {
+                canvasCtx.fillStyle = "#0d0e15";
+                canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+            } else {
+                canvasCtx.drawImage(img, 0, 0, img.width, img.height);
+            }
             
             try {
                 // 画像から姿勢を検出
@@ -658,6 +678,7 @@ const startRecording = () => {
         // グラフと軌跡のリセット
         analysisHistory = [];
         chartSection.classList.remove("active");
+        showChartBtn.disabled = true;
         
         video.src = videoURL;
         video.controls = true;
@@ -860,6 +881,19 @@ closeChartBtn.addEventListener("click", () => {
 
 chartSelect1.addEventListener("change", renderChart);
 chartSelect2.addEventListener("change", renderChart);
+showChartBtn.addEventListener("click", showChartSection);
+
+skeletonOnlyBtn.addEventListener("click", () => {
+    skeletonOnlyMode = !skeletonOnlyMode;
+    skeletonOnlyBtn.classList.toggle("active-mode", skeletonOnlyMode);
+    skeletonOnlyBtn.querySelector("span").innerText = skeletonOnlyMode ? "骨格のみ: ON" : "骨格のみ: OFF";
+    
+    // 静止画モードかつファイルが読み込まれている場合は再描画
+    if (isImageMode && imageFileInput.files[0]) {
+        const fileEvent = { target: { files: [imageFileInput.files[0]] } };
+        handleImageUpload(fileEvent);
+    }
+});
 
 // 関節切り替え時にも角度表示を即時クリア/再計算させる
 jointSelect.addEventListener("change", () => {

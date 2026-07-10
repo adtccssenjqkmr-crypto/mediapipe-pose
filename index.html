@@ -20,7 +20,7 @@
     <!-- Chart.js for time-series joint angle visualization -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="style.css?v=7">
+    <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
     <script>
@@ -124,12 +124,19 @@
             </div>
             
             <div class="control-row">
-                <button id="record-btn" class="panel-btn record-btn" disabled>
+                <button id="record-btn" class="panel-btn record-btn" disabled style="flex: 1;">
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="10"></circle>
                         <circle cx="12" cy="12" r="3" fill="currentColor" id="record-dot-icon"></circle>
                     </svg>
                     <span id="record-btn-text">録画開始</span>
+                </button>
+                <button id="skeleton-only-btn" class="panel-btn secondary-btn" style="flex: 1;">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <span>骨格のみ: OFF</span>
                 </button>
             </div>
             
@@ -149,6 +156,17 @@
                         <polyline points="21 15 16 10 5 21"></polyline>
                     </svg>
                     <span>画像を解析</span>
+                </button>
+            </div>
+
+            <div class="control-row">
+                <button id="show-chart-btn" class="panel-btn secondary-btn" disabled style="width: 100%;">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                    <span>解析グラフを表示</span>
                 </button>
             </div>
             
@@ -205,12 +223,12 @@
     </section>
 
     <!-- Core App Logic -->
-    <script type="module" src="app.js?v=7"></script>
+    <script type="module" src="app.js?v=9"></script>
     <script>
         // Register Service Worker for PWA
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js?v=7')
+                navigator.serviceWorker.register('./sw.js?v=9')
                     .then(reg => console.log('Service Worker registered.', reg))
                     .catch(err => console.error('Service Worker registration failed.', err));
             });
