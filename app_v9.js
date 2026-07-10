@@ -52,6 +52,10 @@ const chartRangeStart = document.getElementById("chart-range-start");
 const chartRangeEnd = document.getElementById("chart-range-end");
 const rangeStartVal = document.getElementById("range-start-val");
 const rangeEndVal = document.getElementById("range-end-val");
+const chartYMin = document.getElementById("chart-y-min");
+const chartYMax = document.getElementById("chart-y-max");
+const yMinVal = document.getElementById("y-min-val");
+const yMaxVal = document.getElementById("y-max-val");
 
 // App State
 let poseLandmarker = undefined;
@@ -543,7 +547,13 @@ const handleVideoUpload = async (event) => {
     if (!file) return;
 
     stopMediaStream();
-    webcamRunning = true;
+    
+    // 解析動画の変更時および競合・フリーズ防止のための完全初期化
+    webcamRunning = false;
+    isLoopActive = false;
+    lastVideoTime = -1;
+    analysisHistory = [];
+    
     isVideoMode = true;
     isImageMode = false;
     updateMirrorMode();
@@ -551,7 +561,6 @@ const handleVideoUpload = async (event) => {
     await setRunningMode("VIDEO");
 
     // グラフのリセットと非表示
-    analysisHistory = [];
     chartSection.classList.remove("active");
     chartSection.style.display = "none";
 
@@ -698,13 +707,18 @@ const startRecording = () => {
         
         // 録画データをセットして自動的に「事後解析」モードへ移行
         stopMediaStream();
-        webcamRunning = true;
+        
+        // 録画切替時の完全リセット
+        webcamRunning = false;
+        isLoopActive = false;
+        lastVideoTime = -1;
+        analysisHistory = [];
+        
         isVideoMode = true;
         isImageMode = false;
         updateMirrorMode();
         
         // グラフと軌跡のリセット
-        analysisHistory = [];
         chartSection.classList.remove("active");
         chartSection.style.display = "none";
         
@@ -881,8 +895,8 @@ const renderChart = () => {
                     y: {
                         grid: { color: 'rgba(255,255,255,0.05)' },
                         ticks: { color: '#8a8f9f', font: { size: 9 } },
-                        min: 0,
-                        max: 180
+                        min: parseFloat(chartYMin.value),
+                        max: parseFloat(chartYMax.value)
                     }
                 }
             }
@@ -988,7 +1002,15 @@ chartRangeEnd.addEventListener("input", onRangeChange);
 video.addEventListener("play", () => {
     if (isVideoMode) {
         webcamRunning = true;
+        isLoopActive = false; // ループの自然消滅によるロックを強制解除
         startLoop(); // 動画再生開始時にループを確実に再スタート
+    }
+});
+
+video.addEventListener("seeked", () => {
+    if (isVideoMode) {
+        isLoopActive = false; // シーク操作による停止ロックを強制解除
+        startLoop(); // シーク位置での骨格即時再描画のためにループをキック
     }
 });
 
@@ -997,6 +1019,24 @@ video.addEventListener("ended", () => {
         showChartSection();
     }
 });
+
+// Y軸表示角度範囲スライダーの入力イベント監視
+const onYRangeChange = () => {
+    const minVal = parseFloat(chartYMin.value);
+    const maxVal = parseFloat(chartYMax.value);
+    
+    if (minVal > maxVal) {
+        chartYMin.value = maxVal;
+    }
+    
+    yMinVal.innerText = chartYMin.value;
+    yMaxVal.innerText = chartYMax.value;
+    
+    renderChart();
+};
+
+chartYMin.addEventListener("input", onYRangeChange);
+chartYMax.addEventListener("input", onYRangeChange);
 
 skeletonOnlyBtn.addEventListener("click", () => {
     skeletonOnlyMode = !skeletonOnlyMode;
