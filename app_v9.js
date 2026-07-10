@@ -319,9 +319,6 @@ const saveToHistory = (time, landmarks) => {
     });
 
     analysisHistory.push(frameData);
-    if (analysisHistory.length > 0) {
-        showChartBtn.disabled = false;
-    }
 };
 
 // リアルタイム骨格検出ループ (事後解析連動・クラッシュ防止＆フレームレート最適化版)
@@ -342,11 +339,17 @@ const predictWebcam = async () => {
 
     const startTimeMs = performance.now();
 
-    if (video.currentTime !== lastVideoTime) {
-        lastVideoTime = video.currentTime;
+    // 映像データが更新されたフレームのみ、またはカメラプレビュー時は毎フレーム姿勢推定を実行
+    const isNewFrame = isVideoMode ? (video.currentTime !== lastVideoTime) : true;
+    if (isNewFrame) {
+        if (isVideoMode) {
+            lastVideoTime = video.currentTime;
+        }
         
         try {
-            const results = poseLandmarker.detectForVideo(video, startTimeMs);
+            // MediaPipe Tasks-Vision は動画解析時、ミリ秒単位で単調増加するタイムスタンプを要求します
+            const timestamp = isVideoMode ? Math.round(video.currentTime * 1000) : startTimeMs;
+            const results = poseLandmarker.detectForVideo(video, timestamp);
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
             // 骨格のみモードの時は背景を黒で塗りつぶす
@@ -432,7 +435,6 @@ const toggleWebcam = async () => {
         poseDetectedVal.classList.remove("active");
         switchCameraBtn.disabled = true;
         recordBtn.disabled = true;
-        showChartBtn.disabled = true;
         
         // 録画中なら停止
         stopRecording();
@@ -519,7 +521,6 @@ const handleVideoUpload = async (event) => {
     // グラフのリセットと非表示
     analysisHistory = [];
     chartSection.classList.remove("active");
-    showChartBtn.disabled = true;
 
     video.src = URL.createObjectURL(file);
     video.controls = true;
@@ -557,7 +558,6 @@ const handleImageUpload = async (event) => {
     isImageMode = true;
     updateMirrorMode();
     chartSection.classList.remove("active");
-    showChartBtn.disabled = true;
 
     loadingScreen.classList.remove("inactive");
     loadingStatus.innerText = "写真を解析中...";
@@ -678,7 +678,6 @@ const startRecording = () => {
         // グラフと軌跡のリセット
         analysisHistory = [];
         chartSection.classList.remove("active");
-        showChartBtn.disabled = true;
         
         video.src = videoURL;
         video.controls = true;
