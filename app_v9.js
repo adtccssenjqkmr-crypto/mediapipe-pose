@@ -521,6 +521,7 @@ const handleVideoUpload = async (event) => {
     // グラフのリセットと非表示
     analysisHistory = [];
     chartSection.classList.remove("active");
+    chartSection.style.display = "none";
 
     video.src = URL.createObjectURL(file);
     video.controls = true;
@@ -558,6 +559,7 @@ const handleImageUpload = async (event) => {
     isImageMode = true;
     updateMirrorMode();
     chartSection.classList.remove("active");
+    chartSection.style.display = "none";
 
     loadingScreen.classList.remove("inactive");
     loadingStatus.innerText = "写真を解析中...";
@@ -678,6 +680,7 @@ const startRecording = () => {
         // グラフと軌跡のリセット
         analysisHistory = [];
         chartSection.classList.remove("active");
+        chartSection.style.display = "none";
         
         video.src = videoURL;
         video.controls = true;
@@ -720,8 +723,12 @@ const showChartSection = () => {
             return;
         }
 
-        chartSection.classList.add("active");
-        renderChart();
+        // インラインの display: none を解除してから、アニメーション用にディレイを入れて active クラスを適用
+        chartSection.style.display = "block";
+        setTimeout(() => {
+            chartSection.classList.add("active");
+            renderChart();
+        }, 10);
     } catch (err) {
         alert("グラフ表示中にエラーが発生しました:\n" + err.message + "\n" + err.stack);
     }
@@ -895,6 +902,10 @@ imageFileInput.addEventListener("change", handleImageUpload);
 
 closeChartBtn.addEventListener("click", () => {
     chartSection.classList.remove("active");
+    // スライドアニメーション(0.4s)完了後に display: none を適用して完全に消去
+    setTimeout(() => {
+        chartSection.style.display = "none";
+    }, 400);
 });
 
 chartSelect1.addEventListener("change", renderChart);
