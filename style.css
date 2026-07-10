@@ -212,31 +212,39 @@ body {
 
 /* HUD Overlay */
 .hud-overlay {
-    position: absolute;
-    top: 16px;
-    left: 16px;
-    right: 16px;
+    position: relative;
+    margin: 4px 16px 8px 16px;
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    flex-direction: row;
+    gap: 8px;
     z-index: 5;
-    pointer-events: none;
 }
 
 .hud-card {
-    background: rgba(10, 11, 20, 0.7);
+    background: rgba(20, 22, 37, 0.4);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    padding: 10px 14px;
-    border-radius: 14px;
+    padding: 8px 12px;
+    border-radius: 12px;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    justify-content: center;
+}
+
+#pose-status-card {
+    flex: 0 0 100px;
+    align-items: center;
+    text-align: center;
+}
+
+#angle-card {
+    flex: 1;
 }
 
 .hud-label {
-    font-size: 10px;
+    font-size: 9px;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -244,7 +252,7 @@ body {
 }
 
 .hud-value {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
 }
 
@@ -254,10 +262,10 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 8px;
     color: var(--text-main);
-    padding: 8px 12px;
-    font-size: 13px;
+    padding: 6px 8px;
+    font-size: 12px;
     font-weight: 600;
-    margin-top: 4px;
+    margin-top: 2px;
     outline: none;
     cursor: pointer;
     width: 100%;
@@ -278,29 +286,29 @@ body {
 .angle-display-row {
     display: flex;
     justify-content: space-between;
-    gap: 12px;
-    margin-top: 8px;
+    gap: 8px;
+    margin-top: 6px;
 }
 
 .angle-val-box {
     flex: 1;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 10px;
-    padding: 8px;
+    border-radius: 8px;
+    padding: 4px 6px;
     text-align: center;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     color: var(--text-muted);
 }
 
 .angle-val-box span {
-    font-size: 20px;
+    font-size: 15px;
     font-weight: 800;
     color: var(--primary);
     font-family: monospace;
     display: block;
-    margin-top: 2px;
+    margin-top: 1px;
     text-shadow: 0 0 10px var(--primary-glow);
 }
 

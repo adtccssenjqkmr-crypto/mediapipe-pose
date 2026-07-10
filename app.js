@@ -54,49 +54,6 @@ let FilesetResolver = null;
 let PoseLandmarker = null;
 let DrawingUtils = null;
 
-// Initialize Pose Landmarker
-const initPoseLandmarker = async () => {
-    try {
-        loadingStatus.innerText = "MediaPipeライブラリをロード中...";
-        const mediaPipe = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/vision_bundle.mjs");
-        FilesetResolver = mediaPipe.FilesetResolver;
-        PoseLandmarker = mediaPipe.PoseLandmarker;
-        DrawingUtils = mediaPipe.DrawingUtils;
-
-        loadingStatus.innerText = "WebAssemblyリソースを取得中...";
-        const vision = await FilesetResolver.forVisionTasks(
-            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm"
-        );
-        
-        loadingStatus.innerText = "AI姿勢推定モデルをロード中...";
-        poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
-            baseOptions: {
-                modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`,
-                delegate: "GPU"
-            },
-            runningMode: "VIDEO",
-            numPoses: 1
-        });
-        
-        drawingUtils = new DrawingUtils(canvasCtx);
-        
-        // Setup successful, remove loader
-        loadingScreen.classList.add("inactive");
-        console.log("MediaPipe Pose Landmarker successfully initialized.");
-        
-        // Enable camera controls
-        toggleBtn.disabled = false;
-    } catch (error) {
-        console.error("Initialization error:", error);
-        loadingStatus.style.color = "#ff4a4a";
-        loadingStatus.innerText = `初期化エラー: ${error.message}\n\nモデルURLやCDNへのアクセスがブロックされている可能性があります。通信状態を確認してください。`;
-        alert("初期化エラーが発生しました:\n" + error.message);
-    }
-};
-
-// Start initialization
-initPoseLandmarker();
-
 // 3D Vector Operations Helper
 const vec = {
     sub: (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }),
@@ -112,6 +69,7 @@ const vec = {
         const m = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
         return m === 0 ? { x: 0, y: 0, z: 0 } : { x: a.x / m, y: a.y / m, z: a.z / m };
     },
+    multiplyScalar: (v, s) => ({ x: v.x * s, y: v.y * s, z: v.z * s }),
     // なす角 (3D) を計算 (度数)
     angle: (a, b) => {
         const d = vec.dot(a, b);
@@ -155,8 +113,6 @@ const getBodyFrame = (landmarks) => {
 // 関節運動の計算
 const computeJointAngles = (landmarks, mode) => {
     // 左右の関節座標の取得
-    // L_shoulder=11, L_elbow=13, L_wrist=15, L_hip=23, L_knee=25, L_ankle=27, L_index=19, L_foot_index=31
-    // R_shoulder=12, R_elbow=14, R_wrist=16, R_hip=24, R_knee=26, R_ankle=28, R_index=20, R_foot_index=32
     const L_sh = landmarks[11];
     const L_el = landmarks[13];
     const L_wr = landmarks[15];
@@ -194,7 +150,8 @@ const computeJointAngles = (landmarks, mode) => {
         const idx = isLeft ? L_idx : R_idx;
         const ft = isLeft ? L_ft : R_ft;
 
-        if (!sh || !el || !wr || !hp || !kn || !ak) return null;
+        // すべての参照ランドマークが存在することを確認するガード条件（手先・足先も見切れ対策で含める）
+        if (!sh || !el || !wr || !hp || !kn || !ak || !idx || !ft) return null;
 
         switch (mode) {
             case "elbow_flexion": {
@@ -224,22 +181,18 @@ const computeJointAngles = (landmarks, mode) => {
             case "shoulder_flexion": {
                 // 肩関節 屈曲/伸展: 上腕の前後スイング角度 (矢状面射影)
                 const armVec = vec.sub(el, sh);
-                // 左右軸に直交する平面（矢状面）に射影
                 const planeAxis = body.shoulderAxis;
                 const armProj = vec.normalize(vec.sub(armVec, vec.multiplyScalar(planeAxis, vec.dot(armVec, planeAxis))));
                 const angle = vec.angle(trunkDown, armProj);
-                // 前後判定
                 const isFlexion = vec.dot(armProj, body.forward) > 0;
                 return isFlexion ? `屈曲 ${angle}` : `伸展 ${angle}`;
             }
             case "shoulder_abduction": {
                 // 肩関節 外転/内転: 上腕の左右開き角度 (冠状面射影)
                 const armVec = vec.sub(el, sh);
-                // 前軸に直交する平面（冠状面）に射影
                 const planeAxis = body.forward;
                 const armProj = vec.normalize(vec.sub(armVec, vec.multiplyScalar(planeAxis, vec.dot(armVec, planeAxis))));
                 const angle = vec.angle(trunkDown, armProj);
-                // 内外判定 (体幹から離れる方向を外転とする)
                 const isAbduction = isLeft ? (vec.dot(armProj, body.shoulderAxis) > 0) : (vec.dot(armProj, body.shoulderAxis) < 0);
                 return isAbduction ? `外転 ${angle}` : `内転 ${angle}`;
             }
@@ -247,16 +200,12 @@ const computeJointAngles = (landmarks, mode) => {
                 // 肩関節 内旋/外旋: 上腕軸を法線とする平面への前腕の射影
                 const arm = vec.normalize(vec.sub(el, sh));
                 const forearm = vec.normalize(vec.sub(wr, el));
-                // 上腕と直交する前腕成分
                 const forearmProj = vec.normalize(vec.sub(forearm, vec.multiplyScalar(arm, vec.dot(forearm, arm))));
-                // 基準となる前方向の射影
                 const forwardProj = vec.normalize(vec.sub(body.forward, vec.multiplyScalar(arm, vec.dot(body.forward, arm))));
                 const angle = vec.angle(forwardProj, forearmProj);
                 
-                // 回転方向
                 const cross = vec.cross(forwardProj, forearmProj);
                 const dotSign = vec.dot(cross, arm);
-                // 左右で内旋外旋の回転軸方向が異なる
                 const isInternal = isLeft ? (dotSign > 0) : (dotSign < 0);
                 return isInternal ? `内旋 ${angle}` : `外旋 ${angle}`;
             }
@@ -302,9 +251,6 @@ const computeJointAngles = (landmarks, mode) => {
     };
 };
 
-// スカラー倍ヘルパー
-vec.multiplyScalar = (v, s) => ({ x: v.x * s, y: v.y * s, z: v.z * s });
-
 // HUD表示の更新
 const updateHudAngles = (landmarks) => {
     const activeMode = jointSelect.value;
@@ -313,7 +259,6 @@ const updateHudAngles = (landmarks) => {
     const formatValue = (val) => {
         if (val === null) return "--°";
         if (typeof val === "string") {
-            // "屈曲 45" や "内旋 12" などの文字形式
             const [direction, num] = val.split(" ");
             return `${direction}\n${num}°`;
         }
@@ -331,6 +276,76 @@ const updateMirrorMode = () => {
         videoWrapper.classList.add("mirror");
     } else {
         videoWrapper.classList.remove("mirror");
+    }
+};
+
+// リアルタイム骨格検出ループ (クラッシュ防止＆フレームレート最適化版)
+const predictWebcam = async () => {
+    if (!webcamRunning) return;
+
+    // クラッシュ防止ガード: ビデオデータがまだ読み込まれていない、またはアスペクト比が0x0の場合は次フレームをスケジュールして即復帰
+    if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
+        if (webcamRunning) {
+            window.requestAnimationFrame(predictWebcam);
+        }
+        return;
+    }
+
+    // キャンバス解像度の同期
+    if (canvasElement.width !== video.videoWidth || canvasElement.height !== video.videoHeight) {
+        canvasElement.width = video.videoWidth;
+        canvasElement.height = video.videoHeight;
+    }
+
+    const startTimeMs = performance.now();
+
+    // 映像データが更新されたフレームのみ姿勢推定を実行 (不要な重複計算のカット)
+    if (video.currentTime !== lastVideoTime) {
+        lastVideoTime = video.currentTime;
+        
+        try {
+            // 姿勢の検出
+            const results = poseLandmarker.detectForVideo(video, startTimeMs);
+            
+            // 描画
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.landmarks && results.landmarks.length > 0) {
+                poseDetectedVal.innerText = isVideoMode ? "動画解析中" : "検出中";
+                poseDetectedVal.style.color = "var(--text-active)";
+                
+                const landmarks = results.landmarks[0];
+                
+                // 骨格接続線の描画
+                drawingUtils.drawConnectors(
+                    landmarks, 
+                    PoseLandmarker.POSE_CONNECTIONS, 
+                    { color: "#9d00ff", lineWidth: 4 }
+                );
+                drawingUtils.drawLandmarks(
+                    landmarks, 
+                    { color: "#00f0ff", lineWidth: 2, radius: 4 }
+                );
+
+                // 各種関節角度の計算とHUD表示の更新
+                updateHudAngles(landmarks);
+            } else {
+                poseDetectedVal.innerText = "未検出";
+                poseDetectedVal.style.color = "var(--text-muted)";
+                leftAngleVal.innerText = "--°";
+                rightAngleVal.innerText = "--°";
+            }
+        } catch (detectError) {
+            console.warn("Detection error (ignored during transition):", detectError);
+        }
+
+        // FPS計算
+        calculateFps(startTimeMs);
+    }
+
+    // 次のフレーム要求
+    if (webcamRunning) {
+        window.requestAnimationFrame(predictWebcam);
     }
 };
 
@@ -450,65 +465,6 @@ const handleVideoUpload = (event) => {
     });
 };
 
-// リアルタイム骨格検出ループ (フレームレート最適化版)
-const predictWebcam = async () => {
-    if (!webcamRunning) return;
-
-    // キャンバス解像度の調整 (無駄なリサイズ処理の削減)
-    if (canvasElement.width !== video.videoWidth || canvasElement.height !== video.videoHeight) {
-        canvasElement.width = video.videoWidth;
-        canvasElement.height = video.videoHeight;
-    }
-
-    const startTimeMs = performance.now();
-
-    // 不要な重複解析を防ぐため、映像時間が進んだ時のみ検出を実行
-    if (video.currentTime !== lastVideoTime) {
-        lastVideoTime = video.currentTime;
-        
-        // 推定処理
-        const results = poseLandmarker.detectForVideo(video, startTimeMs);
-        
-        // 描画処理
-        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-
-        if (results.landmarks && results.landmarks.length > 0) {
-            poseDetectedVal.innerText = isVideoMode ? "動画解析中" : "検出中";
-            poseDetectedVal.style.color = "var(--text-active)";
-            
-            const landmarks = results.landmarks[0];
-            
-            // 骨格と接続の描画
-            drawingUtils.drawConnectors(
-                landmarks, 
-                PoseLandmarker.POSE_CONNECTIONS, 
-                { color: "#9d00ff", lineWidth: 4 }
-            );
-            drawingUtils.drawLandmarks(
-                landmarks, 
-                { color: "#00f0ff", lineWidth: 2, radius: 4 }
-            );
-
-            // 関節角度の計算とHUD更新
-            updateHudAngles(landmarks);
-        } else {
-            poseDetectedVal.innerText = "未検出";
-            poseDetectedVal.style.color = "var(--text-muted)";
-            leftAngleVal.innerText = "--°";
-            rightAngleVal.innerText = "--°";
-        }
-
-        // FPSの計算
-        calculateFps(startTimeMs);
-    }
-
-    // 次のフレーム待機
-    if (webcamRunning) {
-        // 再生中またはシーク/ポーズ時にも追従させるため、再生状態に関わらず再帰
-        window.requestAnimationFrame(predictWebcam);
-    }
-};
-
 // FPS計算
 const calculateFps = (now) => {
     frameCount++;
@@ -517,6 +473,46 @@ const calculateFps = (now) => {
         fpsCounter.innerText = `${fps} FPS`;
         frameCount = 0;
         lastFpsUpdate = now;
+    }
+};
+
+// Initialize Pose Landmarker
+const initPoseLandmarker = async () => {
+    try {
+        loadingStatus.innerText = "MediaPipeライブラリをロード中...";
+        const mediaPipe = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/vision_bundle.mjs");
+        FilesetResolver = mediaPipe.FilesetResolver;
+        PoseLandmarker = mediaPipe.PoseLandmarker;
+        DrawingUtils = mediaPipe.DrawingUtils;
+
+        loadingStatus.innerText = "WebAssemblyリソースを取得中...";
+        const vision = await FilesetResolver.forVisionTasks(
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm"
+        );
+        
+        loadingStatus.innerText = "AI姿勢推定モデルをロード中...";
+        poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+            baseOptions: {
+                modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`,
+                delegate: "GPU"
+            },
+            runningMode: "VIDEO",
+            numPoses: 1
+        });
+        
+        drawingUtils = new DrawingUtils(canvasCtx);
+        
+        // Setup successful, remove loader
+        loadingScreen.classList.add("inactive");
+        console.log("MediaPipe Pose Landmarker successfully initialized.");
+        
+        // Enable camera controls
+        toggleBtn.disabled = false;
+    } catch (error) {
+        console.error("Initialization error:", error);
+        loadingStatus.style.color = "#ff4a4a";
+        loadingStatus.innerText = `初期化エラー: ${error.message}\n\nモデルURLやCDNへのアクセスがブロックされている可能性があります。通信状態を確認してください。`;
+        alert("初期化エラーが発生しました:\n" + error.message);
     }
 };
 
@@ -534,3 +530,6 @@ jointSelect.addEventListener("change", () => {
 
 // Disable Start button initially until model is loaded
 toggleBtn.disabled = true;
+
+// Start initialization
+initPoseLandmarker();

@@ -18,7 +18,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
     <script>
@@ -59,45 +59,45 @@
             </div>
         </header>
 
+        <!-- Real-time HUD info overlay (Moved outside viewport for better usability) -->
+        <div class="hud-overlay">
+            <div class="hud-card" id="pose-status-card">
+                <span class="hud-label">検出状態</span>
+                <span class="hud-value" id="pose-detected">未検出</span>
+            </div>
+            <div class="hud-card" id="angle-card">
+                <span class="hud-label">角度計測</span>
+                <select id="joint-select" class="hud-select">
+                    <optgroup label="肘・膝・手・足 (屈曲/伸展)">
+                        <option value="elbow_flexion">肘関節 (屈曲/伸展)</option>
+                        <option value="knee_flexion">膝関節 (屈曲/伸展)</option>
+                        <option value="wrist_flexion">手関節 (屈曲/伸展)</option>
+                        <option value="ankle_flexion">足関節 (底屈/背屈)</option>
+                    </optgroup>
+                    <optgroup label="肩関節">
+                        <option value="shoulder_flexion">肩関節 (屈曲/伸展)</option>
+                        <option value="shoulder_abduction">肩関節 (内転/外転)</option>
+                        <option value="shoulder_rotation">肩関節 (内旋/外旋)</option>
+                    </optgroup>
+                    <optgroup label="股関節">
+                        <option value="hip_flexion">股関節 (屈曲/伸展)</option>
+                        <option value="hip_abduction">股関節 (内転/外転)</option>
+                        <option value="hip_rotation">股関節 (内旋/外旋)</option>
+                    </optgroup>
+                </select>
+                <div class="angle-display-row">
+                    <div class="angle-val-box">左: <span id="left-angle-val">--°</span></div>
+                    <div class="angle-val-box">右: <span id="right-angle-val">--°</span></div>
+                </div>
+            </div>
+        </div>
+
         <!-- Camera Viewport -->
         <section class="viewport-section">
             <div class="video-wrapper">
                 <input type="file" id="video-file-input" accept="video/*" style="display: none;">
                 <video id="webcam" autoplay playsinline muted></video>
                 <canvas id="output_canvas"></canvas>
-            </div>
-            
-            <!-- Real-time HUD info overlay -->
-            <div class="hud-overlay">
-                <div class="hud-card" id="pose-status-card">
-                    <span class="hud-label">検出状態</span>
-                    <span class="hud-value" id="pose-detected">未検出</span>
-                </div>
-                <div class="hud-card" id="angle-card">
-                    <span class="hud-label">角度計測</span>
-                    <select id="joint-select" class="hud-select">
-                        <optgroup label="肘・膝・手・足 (屈曲/伸展)">
-                            <option value="elbow_flexion">肘関節 (屈曲/伸展)</option>
-                            <option value="knee_flexion">膝関節 (屈曲/伸展)</option>
-                            <option value="wrist_flexion">手関節 (屈曲/伸展)</option>
-                            <option value="ankle_flexion">足関節 (底屈/背屈)</option>
-                        </optgroup>
-                        <optgroup label="肩関節">
-                            <option value="shoulder_flexion">肩関節 (屈曲/伸展)</option>
-                            <option value="shoulder_abduction">肩関節 (内転/外転)</option>
-                            <option value="shoulder_rotation">肩関節 (内旋/外旋)</option>
-                        </optgroup>
-                        <optgroup label="股関節">
-                            <option value="hip_flexion">股関節 (屈曲/伸展)</option>
-                            <option value="hip_abduction">股関節 (内転/外転)</option>
-                            <option value="hip_rotation">股関節 (内旋/外旋)</option>
-                        </optgroup>
-                    </select>
-                    <div class="angle-display-row">
-                        <div class="angle-val-box">左: <span id="left-angle-val">--°</span></div>
-                        <div class="angle-val-box">右: <span id="right-angle-val">--°</span></div>
-                    </div>
-                </div>
             </div>
         </section>
 
@@ -138,12 +138,12 @@
     </main>
 
     <!-- Core App Logic -->
-    <script type="module" src="app.js?v=5"></script>
+    <script type="module" src="app.js?v=6"></script>
     <script>
         // Register Service Worker for PWA
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js?v=5')
+                navigator.serviceWorker.register('./sw.js?v=6')
                     .then(reg => console.log('Service Worker registered.', reg))
                     .catch(err => console.error('Service Worker registration failed.', err));
             });
