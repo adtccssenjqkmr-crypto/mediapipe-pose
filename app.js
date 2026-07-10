@@ -710,108 +710,127 @@ const stopRecording = () => {
 
 // グラフ描画制御
 const showChartSection = () => {
-    if (analysisHistory.length === 0) {
-        alert("時系列データがありません。動画を解析してください。");
-        return;
+    try {
+        if (analysisHistory.length === 0) {
+            alert("時系列データがありません。動画を解析してください。");
+            return;
+        }
+
+        if (typeof Chart === "undefined") {
+            alert("グラフ描画ライブラリ (Chart.js) がロードされていません。インターネットの接続状態を確認するか、ページを再読み込みしてください。");
+            return;
+        }
+
+        chartSection.classList.add("active");
+        renderChart();
+    } catch (err) {
+        alert("グラフ表示中にエラーが発生しました:\n" + err.message + "\n" + err.stack);
     }
-    chartSection.classList.add("active");
-    renderChart();
 };
 
 const renderChart = () => {
-    if (analysisHistory.length === 0) return;
+    try {
+        if (analysisHistory.length === 0) return;
 
-    const ctx = document.getElementById('jointChart').getContext('2d');
-    const select1Val = chartSelect1.value;
-    const select2Val = chartSelect2.value;
+        const canvas = document.getElementById('jointChart');
+        if (!canvas) {
+            alert("グラフ用のキャンバス要素が見つかりません。");
+            return;
+        }
+        const ctx = canvas.getContext('2d');
+        const select1Val = chartSelect1.value;
+        const select2Val = chartSelect2.value;
 
-    const labels = analysisHistory.map(d => `${d.time}s`);
-    const datasets = [];
+        const labels = analysisHistory.map(d => `${d.time}s`);
+        const datasets = [];
 
-    // グラフ 1 (実線) のデータを抽出
-    const leftData1 = analysisHistory.map(d => d.angles[select1Val]?.left);
-    const rightData1 = analysisHistory.map(d => d.angles[select1Val]?.right);
-    const label1 = chartSelect1.options[chartSelect1.selectedIndex].text;
-
-    datasets.push({
-        label: `${label1} (左)`,
-        data: leftData1,
-        borderColor: '#00f0ff',
-        backgroundColor: 'rgba(0, 240, 255, 0.05)',
-        borderWidth: 2,
-        tension: 0.15,
-        fill: false
-    });
-    datasets.push({
-        label: `${label1} (右)`,
-        data: rightData1,
-        borderColor: '#00a0ff',
-        backgroundColor: 'rgba(0, 160, 255, 0.05)',
-        borderWidth: 2,
-        tension: 0.15,
-        fill: false
-    });
-
-    // グラフ 2 (破線) が選択されていれば抽出
-    if (select2Val !== 'none') {
-        const leftData2 = analysisHistory.map(d => d.angles[select2Val]?.left);
-        const rightData2 = analysisHistory.map(d => d.angles[select2Val]?.right);
-        const label2 = chartSelect2.options[chartSelect2.selectedIndex].text;
+        // グラフ 1 (実線) のデータを抽出
+        const leftData1 = analysisHistory.map(d => d.angles[select1Val]?.left);
+        const rightData1 = analysisHistory.map(d => d.angles[select1Val]?.right);
+        const label1 = chartSelect1.options[chartSelect1.selectedIndex].text;
 
         datasets.push({
-            label: `${label2} (左)`,
-            data: leftData2,
-            borderColor: '#9d00ff',
-            borderDash: [5, 5],
-            backgroundColor: 'rgba(157, 0, 255, 0.05)',
+            label: `${label1} (左)`,
+            data: leftData1,
+            borderColor: '#00f0ff',
+            backgroundColor: 'rgba(0, 240, 255, 0.05)',
             borderWidth: 2,
             tension: 0.15,
             fill: false
         });
         datasets.push({
-            label: `${label2} (右)`,
-            data: rightData2,
-            borderColor: '#ff00d0',
-            borderDash: [5, 5],
-            backgroundColor: 'rgba(255, 0, 208, 0.05)',
+            label: `${label1} (右)`,
+            data: rightData1,
+            borderColor: '#00a0ff',
+            backgroundColor: 'rgba(0, 160, 255, 0.05)',
             borderWidth: 2,
             tension: 0.15,
             fill: false
         });
-    }
 
-    if (jointChart) {
-        jointChart.destroy();
-    }
+        // グラフ 2 (破線) が選択されていれば抽出
+        if (select2Val !== 'none') {
+            const leftData2 = analysisHistory.map(d => d.angles[select2Val]?.left);
+            const rightData2 = analysisHistory.map(d => d.angles[select2Val]?.right);
+            const label2 = chartSelect2.options[chartSelect2.selectedIndex].text;
 
-    jointChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: datasets
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    labels: { color: '#f0f3ff', font: { size: 10 } }
-                }
+            datasets.push({
+                label: `${label2} (左)`,
+                data: leftData2,
+                borderColor: '#9d00ff',
+                borderDash: [5, 5],
+                backgroundColor: 'rgba(157, 0, 255, 0.05)',
+                borderWidth: 2,
+                tension: 0.15,
+                fill: false
+            });
+            datasets.push({
+                label: `${label2} (右)`,
+                data: rightData2,
+                borderColor: '#ff00d0',
+                borderDash: [5, 5],
+                backgroundColor: 'rgba(255, 0, 208, 0.05)',
+                borderWidth: 2,
+                tension: 0.15,
+                fill: false
+            });
+        }
+
+        if (jointChart) {
+            jointChart.destroy();
+        }
+
+        jointChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: datasets
             },
-            scales: {
-                x: {
-                    grid: { color: 'rgba(255,255,255,0.05)' },
-                    ticks: { color: '#8a8f9f', font: { size: 9 } }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#f0f3ff', font: { size: 10 } }
+                    }
                 },
-                y: {
-                    grid: { color: 'rgba(255,255,255,0.05)' },
-                    ticks: { color: '#8a8f9f', font: { size: 9 } },
-                    min: 0,
-                    max: 180
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: { color: '#8a8f9f', font: { size: 9 } }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: { color: '#8a8f9f', font: { size: 9 } },
+                        min: 0,
+                        max: 180
+                    }
                 }
             }
-        }
-    });
+        });
+    } catch (renderErr) {
+        alert("グラフ描画中にエラーが発生しました:\n" + renderErr.message + "\n" + renderErr.stack);
+    }
 };
 
 // FPS計算
