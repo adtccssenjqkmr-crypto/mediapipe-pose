@@ -329,6 +329,16 @@ const saveToHistory = (time, landmarks) => {
 const predictWebcam = async () => {
     if (!webcamRunning) return;
 
+    // フリーズ・骨格フリーズ防止: 動画一時停止中、バッファ待ち、または終了時は姿勢推定を行わず、描画ループだけを維持して待機
+    // これにより、スマホの通信ラグ等で自動的にpause/waiting状態になった際にAIループが永久停止してしまうバグを完全に防ぎます
+    const isVideoPaused = isVideoMode && (video.paused || video.ended);
+    if (isVideoPaused) {
+        if (webcamRunning) {
+            window.requestAnimationFrame(predictWebcam);
+        }
+        return;
+    }
+
     if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
         if (webcamRunning) {
             window.requestAnimationFrame(predictWebcam);
@@ -750,12 +760,32 @@ const renderChart = () => {
         const filteredHistory = analysisHistory.filter(d => d.time >= minTime && d.time <= maxTime);
         if (filteredHistory.length === 0) return;
 
+        // ノイズ除去のための移動平均（スムージング）ヘルパー (5フレーム平均)
+        const smoothData = (data, windowSize = 5) => {
+            const smoothed = [];
+            for (let i = 0; i < data.length; i++) {
+                let sum = 0;
+                let count = 0;
+                for (let j = Math.max(0, i - windowSize + 1); j <= i; j++) {
+                    const val = data[j];
+                    if (val !== null && val !== undefined && !isNaN(val)) {
+                        sum += val;
+                        count++;
+                    }
+                }
+                smoothed.push(count > 0 ? Math.round((sum / count) * 10) / 10 : null);
+            }
+            return smoothed;
+        };
+
         const labels = filteredHistory.map(d => `${d.time}s`);
         const datasets = [];
 
-        // グラフ 1 (実線) のデータを抽出
-        const leftData1 = filteredHistory.map(d => d.angles[select1Val]?.left);
-        const rightData1 = filteredHistory.map(d => d.angles[select1Val]?.right);
+        // グラフ 1 (実線) のデータを抽出して平滑化
+        const rawLeftData1 = filteredHistory.map(d => d.angles[select1Val]?.left);
+        const rawRightData1 = filteredHistory.map(d => d.angles[select1Val]?.right);
+        const leftData1 = smoothData(rawLeftData1, 5);
+        const rightData1 = smoothData(rawRightData1, 5);
         const label1 = chartSelect1.options[chartSelect1.selectedIndex].text;
 
         datasets.push({
@@ -777,10 +807,12 @@ const renderChart = () => {
             fill: false
         });
 
-        // グラフ 2 (破線) が選択されていれば抽出
+        // グラフ 2 (破線) が選択されていれば抽出して平滑化
         if (select2Val !== 'none') {
-            const leftData2 = filteredHistory.map(d => d.angles[select2Val]?.left);
-            const rightData2 = filteredHistory.map(d => d.angles[select2Val]?.right);
+            const rawLeftData2 = filteredHistory.map(d => d.angles[select2Val]?.left);
+            const rawRightData2 = filteredHistory.map(d => d.angles[select2Val]?.right);
+            const leftData2 = smoothData(rawLeftData2, 5);
+            const rightData2 = smoothData(rawRightData2, 5);
             const label2 = chartSelect2.options[chartSelect2.selectedIndex].text;
 
             datasets.push({
@@ -933,23 +965,16 @@ const onRangeChange = () => {
 chartRangeStart.addEventListener("input", onRangeChange);
 chartRangeEnd.addEventListener("input", onRangeChange);
 
-// フリーズ防止: 動画の再生・一時停止・終了状態にメイン姿勢推定ループを完全に連動
+// フリーズ防止: 以前の pause 連動はスマートフォンのロード待ち等でAIループが永久停止する原因になるため廃止
+// 再生中は predictWebcam 内で video.paused を検知し安全に早期リターンする形式に改めました
 video.addEventListener("play", () => {
     if (isVideoMode) {
         webcamRunning = true;
-        predictWebcam();
-    }
-});
-
-video.addEventListener("pause", () => {
-    if (isVideoMode) {
-        webcamRunning = false;
     }
 });
 
 video.addEventListener("ended", () => {
     if (isVideoMode) {
-        webcamRunning = false;
         showChartSection();
     }
 });
