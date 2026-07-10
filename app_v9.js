@@ -63,6 +63,7 @@ let currentFacingMode = "user"; // "user" or "environment"
 let localVideoTrack = null;
 let lastVideoTime = -1;
 let drawingUtils = null;
+let isLoopActive = false; // ループの重複起動（多重実行）を防止する排他ロックフラグ
 let frameCount = 0;
 let lastFpsUpdate = 0;
 
@@ -325,9 +326,20 @@ const saveToHistory = (time, landmarks) => {
     analysisHistory.push(frameData);
 };
 
+// 安全に姿勢推定ループを再起動・スケジュールするキック関数
+const startLoop = () => {
+    if (webcamRunning && !isLoopActive) {
+        isLoopActive = true;
+        predictWebcam();
+    }
+};
+
 // リアルタイム骨格検出ループ (事後解析連動・クラッシュ防止＆フレームレート最適化版)
 const predictWebcam = async () => {
-    if (!webcamRunning) return;
+    if (!webcamRunning) {
+        isLoopActive = false;
+        return;
+    }
 
     // フリーズ・骨格フリーズ防止: 動画一時停止中、バッファ待ち、または終了時は姿勢推定を行わず、描画ループだけを維持して待機
     // これにより、スマホの通信ラグ等で自動的にpause/waiting状態になった際にAIループが永久停止してしまうバグを完全に防ぎます
@@ -335,6 +347,8 @@ const predictWebcam = async () => {
     if (isVideoPaused) {
         if (webcamRunning) {
             window.requestAnimationFrame(predictWebcam);
+        } else {
+            isLoopActive = false;
         }
         return;
     }
@@ -342,6 +356,8 @@ const predictWebcam = async () => {
     if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
         if (webcamRunning) {
             window.requestAnimationFrame(predictWebcam);
+        } else {
+            isLoopActive = false;
         }
         return;
     }
@@ -417,6 +433,8 @@ const predictWebcam = async () => {
 
     if (webcamRunning) {
         window.requestAnimationFrame(predictWebcam);
+    } else {
+        isLoopActive = false;
     }
 };
 
@@ -503,7 +521,7 @@ const startCamera = async () => {
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = stream;
         localVideoTrack = stream.getVideoTracks()[0];
-        video.addEventListener("loadeddata", predictWebcam);
+        video.addEventListener("loadeddata", startLoop);
     } catch (err) {
         console.error("Camera access error:", err);
         alert("カメラへのアクセスを許可してください。");
@@ -970,6 +988,7 @@ chartRangeEnd.addEventListener("input", onRangeChange);
 video.addEventListener("play", () => {
     if (isVideoMode) {
         webcamRunning = true;
+        startLoop(); // 動画再生開始時にループを確実に再スタート
     }
 });
 
