@@ -17,8 +17,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     
+    <!-- Chart.js for time-series joint angle visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="style.css?v=6">
+    <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
     <script>
@@ -63,6 +65,7 @@
         <section class="viewport-section">
             <div class="video-wrapper">
                 <input type="file" id="video-file-input" accept="video/*" style="display: none;">
+                <input type="file" id="image-file-input" accept="image/*" style="display: none;">
                 <video id="webcam" autoplay playsinline muted></video>
                 <canvas id="output_canvas"></canvas>
             </div>
@@ -121,6 +124,16 @@
             </div>
             
             <div class="control-row">
+                <button id="record-btn" class="panel-btn record-btn" disabled>
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <circle cx="12" cy="12" r="3" fill="currentColor" id="record-dot-icon"></circle>
+                    </svg>
+                    <span id="record-btn-text">録画開始</span>
+                </button>
+            </div>
+            
+            <div class="control-row">
                 <button id="upload-video-btn" class="panel-btn secondary-btn">
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -129,21 +142,75 @@
                     </svg>
                     <span>動画を解析</span>
                 </button>
+                <button id="upload-image-btn" class="panel-btn secondary-btn">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    <span>画像を解析</span>
+                </button>
             </div>
             
             <div class="info-row">
-                <p>全身が映るように撮影または動画選択を行ってください。</p>
+                <p>カメラで「録画開始」するか、保存した動画・画像を読み込んで解析できます。</p>
             </div>
         </footer>
     </main>
 
+    <!-- Chart Visualization Section -->
+    <section id="chart-section" class="chart-section" style="display: none;">
+        <div class="chart-card">
+            <div class="chart-header">
+                <span class="hud-label">時系列角度解析グラフ</span>
+                <button id="close-chart-btn" class="close-btn">&times;</button>
+            </div>
+            <div class="chart-select-row">
+                <div class="chart-select-box">
+                    <label for="chart-select-1">グラフ 1 (実線)</label>
+                    <select id="chart-select-1" class="hud-select-compact">
+                        <option value="elbow_flexion">肘関節 (屈曲)</option>
+                        <option value="knee_flexion" selected>膝関節 (屈曲)</option>
+                        <option value="wrist_flexion">手関節 (屈曲)</option>
+                        <option value="ankle_flexion">足関節 (底背屈)</option>
+                        <option value="shoulder_flexion">肩関節 (屈曲/伸展)</option>
+                        <option value="shoulder_abduction">肩関節 (内転/外転)</option>
+                        <option value="shoulder_rotation">肩関節 (内旋/外旋)</option>
+                        <option value="hip_flexion">股関節 (屈曲/伸展)</option>
+                        <option value="hip_abduction">股関節 (内転/外転)</option>
+                        <option value="hip_rotation">股関節 (内旋/外旋)</option>
+                    </select>
+                </div>
+                <div class="chart-select-box">
+                    <label for="chart-select-2">グラフ 2 (破線)</label>
+                    <select id="chart-select-2" class="hud-select-compact">
+                        <option value="none">表示なし</option>
+                        <option value="elbow_flexion">肘関節 (屈曲)</option>
+                        <option value="knee_flexion">膝関節 (屈曲)</option>
+                        <option value="wrist_flexion">手関節 (屈曲)</option>
+                        <option value="ankle_flexion">足関節 (底背屈)</option>
+                        <option value="shoulder_flexion">肩関節 (屈曲/伸展)</option>
+                        <option value="shoulder_abduction">肩関節 (内転/外転)</option>
+                        <option value="shoulder_rotation">肩関節 (内旋/外旋)</option>
+                        <option value="hip_flexion">股関節 (屈曲/伸展)</option>
+                        <option value="hip_abduction">股関節 (内転/外転)</option>
+                        <option value="hip_rotation">股関節 (内旋/外旋)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="jointChart"></canvas>
+            </div>
+        </div>
+    </section>
+
     <!-- Core App Logic -->
-    <script type="module" src="app.js?v=6"></script>
+    <script type="module" src="app.js?v=7"></script>
     <script>
         // Register Service Worker for PWA
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js?v=6')
+                navigator.serviceWorker.register('./sw.js?v=7')
                     .then(reg => console.log('Service Worker registered.', reg))
                     .catch(err => console.error('Service Worker registration failed.', err));
             });

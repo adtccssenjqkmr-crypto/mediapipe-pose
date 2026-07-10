@@ -27,8 +27,11 @@ const loadingScreen = document.getElementById("loading-screen");
 const loadingStatus = document.getElementById("loading-status");
 const toggleBtn = document.getElementById("toggle-btn");
 const switchCameraBtn = document.getElementById("switch-camera-btn");
+const recordBtn = document.getElementById("record-btn");
 const uploadVideoBtn = document.getElementById("upload-video-btn");
+const uploadImageBtn = document.getElementById("upload-image-btn");
 const videoFileInput = document.getElementById("video-file-input");
+const imageFileInput = document.getElementById("image-file-input");
 const fpsCounter = document.getElementById("fps-counter");
 const statusDot = document.getElementById("status-dot");
 const poseDetectedVal = document.getElementById("pose-detected");
@@ -38,16 +41,31 @@ const jointSelect = document.getElementById("joint-select");
 const leftAngleVal = document.getElementById("left-angle-val");
 const rightAngleVal = document.getElementById("right-angle-val");
 
+// Chart Drawer Elements
+const chartSection = document.getElementById("chart-section");
+const closeChartBtn = document.getElementById("close-chart-btn");
+const chartSelect1 = document.getElementById("chart-select-1");
+const chartSelect2 = document.getElementById("chart-select-2");
+
 // App State
 let poseLandmarker = undefined;
 let webcamRunning = false;
 let isVideoMode = false;
+let isImageMode = false;
 let currentFacingMode = "user"; // "user" or "environment"
 let localVideoTrack = null;
 let lastVideoTime = -1;
 let drawingUtils = null;
 let frameCount = 0;
 let lastFpsUpdate = 0;
+
+// Recording State
+let mediaRecorder = null;
+let recordedBlobs = [];
+
+// 時系列角度解析ヒストリー
+let analysisHistory = []; // Array of { time: number, angles: { [mode]: { left, right } } }
+let jointChart = null;
 
 // MediaPipe global class holders for module scope access
 let FilesetResolver = null;
@@ -70,7 +88,6 @@ const vec = {
         return m === 0 ? { x: 0, y: 0, z: 0 } : { x: a.x / m, y: a.y / m, z: a.z / m };
     },
     multiplyScalar: (v, s) => ({ x: v.x * s, y: v.y * s, z: v.z * s }),
-    // なす角 (3D) を計算 (度数)
     angle: (a, b) => {
         const d = vec.dot(a, b);
         const ma = vec.mag(a);
@@ -100,11 +117,8 @@ const getBodyFrame = (landmarks) => {
         z: (L_hip.z + R_hip.z) / 2
     };
     
-    // 脊椎縦軸 (腰から肩へ向かうベクトル)
     const spine = vec.normalize(vec.sub(shoulderCenter, hipCenter));
-    // 左右軸 (右から左肩へ向かうベクトル)
     const shoulderAxis = vec.normalize(vec.sub(L_sh, R_sh));
-    // 体の前方向ベクトル (外積)
     const forward = vec.normalize(vec.cross(shoulderAxis, spine));
     
     return { spine, shoulderAxis, forward };
@@ -112,7 +126,6 @@ const getBodyFrame = (landmarks) => {
 
 // 関節運動の計算
 const computeJointAngles = (landmarks, mode) => {
-    // 左右の関節座標の取得
     const L_sh = landmarks[11];
     const L_el = landmarks[13];
     const L_wr = landmarks[15];
@@ -134,7 +147,6 @@ const computeJointAngles = (landmarks, mode) => {
     const body = getBodyFrame(landmarks);
     if (!body) return { left: null, right: null };
 
-    // 体幹下方向
     const trunkDown = vec.normalize(vec.sub(
         { x: (L_hp.x+R_hp.x)/2, y: (L_hp.y+R_hp.y)/2, z: (L_hp.z+R_hp.z)/2 },
         { x: (L_sh.x+R_sh.x)/2, y: (L_sh.y+R_sh.y)/2, z: (L_sh.z+R_sh.z)/2 }
@@ -150,36 +162,30 @@ const computeJointAngles = (landmarks, mode) => {
         const idx = isLeft ? L_idx : R_idx;
         const ft = isLeft ? L_ft : R_ft;
 
-        // すべての参照ランドマークが存在することを確認するガード条件（手先・足先も見切れ対策で含める）
         if (!sh || !el || !wr || !hp || !kn || !ak || !idx || !ft) return null;
 
         switch (mode) {
             case "elbow_flexion": {
-                // 肘関節 屈曲: 肩 - 肘 - 手首
                 const arm = vec.sub(sh, el);
                 const forearm = vec.sub(wr, el);
                 return vec.angle(arm, forearm);
             }
             case "knee_flexion": {
-                // 膝関節 屈曲: 股関節 - 膝 - 足首
                 const thigh = vec.sub(hp, kn);
                 const calf = vec.sub(ak, kn);
                 return vec.angle(thigh, calf);
             }
             case "wrist_flexion": {
-                // 手関節 屈曲: 肘 - 手首 - 人差し指
                 const forearm = vec.sub(el, wr);
                 const hand = vec.sub(idx, wr);
                 return vec.angle(forearm, hand);
             }
             case "ankle_flexion": {
-                // 足関節 屈曲 (底背屈): 膝 - 足首 - つま先
                 const calf = vec.sub(kn, ak);
                 const foot = vec.sub(ft, ak);
                 return vec.angle(calf, foot);
             }
             case "shoulder_flexion": {
-                // 肩関節 屈曲/伸展: 上腕の前後スイング角度 (矢状面射影)
                 const armVec = vec.sub(el, sh);
                 const planeAxis = body.shoulderAxis;
                 const armProj = vec.normalize(vec.sub(armVec, vec.multiplyScalar(planeAxis, vec.dot(armVec, planeAxis))));
@@ -188,7 +194,6 @@ const computeJointAngles = (landmarks, mode) => {
                 return isFlexion ? `屈曲 ${angle}` : `伸展 ${angle}`;
             }
             case "shoulder_abduction": {
-                // 肩関節 外転/内転: 上腕の左右開き角度 (冠状面射影)
                 const armVec = vec.sub(el, sh);
                 const planeAxis = body.forward;
                 const armProj = vec.normalize(vec.sub(armVec, vec.multiplyScalar(planeAxis, vec.dot(armVec, planeAxis))));
@@ -197,7 +202,6 @@ const computeJointAngles = (landmarks, mode) => {
                 return isAbduction ? `外転 ${angle}` : `内転 ${angle}`;
             }
             case "shoulder_rotation": {
-                // 肩関節 内旋/外旋: 上腕軸を法線とする平面への前腕の射影
                 const arm = vec.normalize(vec.sub(el, sh));
                 const forearm = vec.normalize(vec.sub(wr, el));
                 const forearmProj = vec.normalize(vec.sub(forearm, vec.multiplyScalar(arm, vec.dot(forearm, arm))));
@@ -210,7 +214,6 @@ const computeJointAngles = (landmarks, mode) => {
                 return isInternal ? `内旋 ${angle}` : `外旋 ${angle}`;
             }
             case "hip_flexion": {
-                // 股関節 屈曲/伸展: 大腿の前後角度 (矢状面射影)
                 const thighVec = vec.sub(kn, hp);
                 const planeAxis = body.shoulderAxis;
                 const thighProj = vec.normalize(vec.sub(thighVec, vec.multiplyScalar(planeAxis, vec.dot(thighVec, planeAxis))));
@@ -219,7 +222,6 @@ const computeJointAngles = (landmarks, mode) => {
                 return isFlexion ? `屈曲 ${angle}` : `伸展 ${angle}`;
             }
             case "hip_abduction": {
-                // 股関節 外転/内転: 大腿の左右角度 (冠状面射影)
                 const thighVec = vec.sub(kn, hp);
                 const planeAxis = body.forward;
                 const thighProj = vec.normalize(vec.sub(thighVec, vec.multiplyScalar(planeAxis, vec.dot(thighVec, planeAxis))));
@@ -228,7 +230,6 @@ const computeJointAngles = (landmarks, mode) => {
                 return isAbduction ? `外転 ${angle}` : `内転 ${angle}`;
             }
             case "hip_rotation": {
-                // 股関節 内旋/外旋: 大腿軸を法線とする平面への下腿の射影
                 const thigh = vec.normalize(vec.sub(kn, hp));
                 const calf = vec.normalize(vec.sub(ak, kn));
                 const calfProj = vec.normalize(vec.sub(calf, vec.multiplyScalar(thigh, vec.dot(calf, thigh))));
@@ -260,7 +261,7 @@ const updateHudAngles = (landmarks) => {
         if (val === null) return "--°";
         if (typeof val === "string") {
             const [direction, num] = val.split(" ");
-            return `${direction}\n${num}°`;
+            return `${direction} ${num}°`;
         }
         return `${val}°`;
     };
@@ -272,18 +273,55 @@ const updateHudAngles = (landmarks) => {
 // ミラーリング（反転）状態の自動更新
 const updateMirrorMode = () => {
     const videoWrapper = video.parentElement;
-    if (webcamRunning && currentFacingMode === "user" && !isVideoMode) {
+    if (webcamRunning && currentFacingMode === "user" && !isVideoMode && !isImageMode) {
         videoWrapper.classList.add("mirror");
     } else {
         videoWrapper.classList.remove("mirror");
     }
 };
 
-// リアルタイム骨格検出ループ (クラッシュ防止＆フレームレート最適化版)
+// 時系列データの保存
+const saveToHistory = (time, landmarks) => {
+    // 重複時間をスキップ
+    if (analysisHistory.length > 0 && analysisHistory[analysisHistory.length - 1].time === time) {
+        return;
+    }
+
+    const modes = [
+        "elbow_flexion", "knee_flexion", "wrist_flexion", "ankle_flexion",
+        "shoulder_flexion", "shoulder_abduction", "shoulder_rotation",
+        "hip_flexion", "hip_abduction", "hip_rotation"
+    ];
+
+    const frameData = {
+        time: Math.round(time * 100) / 100,
+        angles: {}
+    };
+
+    modes.forEach(m => {
+        const result = computeJointAngles(landmarks, m);
+        const parseNum = (val) => {
+            if (val === null) return null;
+            if (typeof val === "string") {
+                const parts = val.split(" ");
+                return parseFloat(parts[parts.length - 1]);
+            }
+            return val;
+        };
+
+        frameData.angles[m] = {
+            left: parseNum(result.left),
+            right: parseNum(result.right)
+        };
+    });
+
+    analysisHistory.push(frameData);
+};
+
+// リアルタイム骨格検出ループ (事後解析連動・クラッシュ防止＆フレームレート最適化版)
 const predictWebcam = async () => {
     if (!webcamRunning) return;
 
-    // クラッシュ防止ガード: ビデオデータがまだ読み込まれていない、またはアスペクト比が0x0の場合は次フレームをスケジュールして即復帰
     if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
         if (webcamRunning) {
             window.requestAnimationFrame(predictWebcam);
@@ -291,7 +329,6 @@ const predictWebcam = async () => {
         return;
     }
 
-    // キャンバス解像度の同期
     if (canvasElement.width !== video.videoWidth || canvasElement.height !== video.videoHeight) {
         canvasElement.width = video.videoWidth;
         canvasElement.height = video.videoHeight;
@@ -299,39 +336,46 @@ const predictWebcam = async () => {
 
     const startTimeMs = performance.now();
 
-    // 映像データが更新されたフレームのみ姿勢推定を実行 (不要な重複計算のカット)
     if (video.currentTime !== lastVideoTime) {
         lastVideoTime = video.currentTime;
         
         try {
-            // 姿勢の検出
             const results = poseLandmarker.detectForVideo(video, startTimeMs);
-            
-            // 描画
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
             if (results.landmarks && results.landmarks.length > 0) {
-                poseDetectedVal.innerText = isVideoMode ? "分析中" : "検出中";
+                poseDetectedVal.innerText = isVideoMode ? "分析中" : "プレビュー中";
                 poseDetectedVal.classList.add("active");
                 
                 const landmarks = results.landmarks[0];
                 
-                // 骨格接続線の描画
-                drawingUtils.drawConnectors(
-                    landmarks, 
-                    PoseLandmarker.POSE_CONNECTIONS, 
-                    { color: "#9d00ff", lineWidth: 4 }
-                );
-                drawingUtils.drawLandmarks(
-                    landmarks, 
-                    { color: "#00f0ff", lineWidth: 2, radius: 4 }
-                );
-
-                // 各種関節角度の計算とHUD表示の更新
-                updateHudAngles(landmarks);
+                // 骨格接続線の描画 (※事後解析中または通常カメラ稼働中のみ描画する)
+                // 録画中は、プレビューを軽くするため＆本来の画角チェックのために描画を非表示にする
+                const isRecording = mediaRecorder && mediaRecorder.state === "recording";
+                if (!isRecording || isVideoMode) {
+                    drawingUtils.drawConnectors(
+                        landmarks, 
+                        PoseLandmarker.POSE_CONNECTIONS, 
+                        { color: "#9d00ff", lineWidth: 4 }
+                    );
+                    drawingUtils.drawLandmarks(
+                        landmarks, 
+                        { color: "#00f0ff", lineWidth: 2, radius: 4 }
+                    );
+                    
+                    // 角度と時系列の更新
+                    updateHudAngles(landmarks);
+                    if (isVideoMode) {
+                        saveToHistory(video.currentTime, landmarks);
+                    }
+                }
             } else {
-                poseDetectedVal.innerText = "未検出";
-                poseDetectedVal.classList.remove("active");
+                poseDetectedVal.innerText = isVideoMode ? "未検出" : "プレビュー中";
+                if (!isVideoMode) {
+                    poseDetectedVal.classList.add("active");
+                } else {
+                    poseDetectedVal.classList.remove("active");
+                }
                 leftAngleVal.innerText = "--°";
                 rightAngleVal.innerText = "--°";
             }
@@ -339,14 +383,18 @@ const predictWebcam = async () => {
             console.warn("Detection error (ignored during transition):", detectError);
         }
 
-        // FPS計算
         calculateFps(startTimeMs);
     }
 
-    // 次のフレーム要求
     if (webcamRunning) {
         window.requestAnimationFrame(predictWebcam);
     }
+};
+
+// 実行モードの切り替え (IMAGE / VIDEO)
+const setRunningMode = async (mode) => {
+    if (!poseLandmarker) return;
+    await poseLandmarker.setOptions({ runningMode: mode });
 };
 
 // カメラ制御: On/Off切り替え
@@ -369,12 +417,20 @@ const toggleWebcam = async () => {
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
         fpsCounter.innerText = "-- FPS";
         poseDetectedVal.innerText = "未検出";
+        poseDetectedVal.classList.remove("active");
         switchCameraBtn.disabled = true;
+        recordBtn.disabled = true;
+        
+        // 録画中なら停止
+        stopRecording();
     } else {
         // カメラ開始
         webcamRunning = true;
         isVideoMode = false;
+        isImageMode = false;
         video.controls = false;
+        
+        await setRunningMode("VIDEO");
         
         toggleBtn.innerHTML = `
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -387,6 +443,7 @@ const toggleWebcam = async () => {
         
         await startCamera();
         switchCameraBtn.disabled = false;
+        recordBtn.disabled = false;
     }
     updateMirrorMode();
 };
@@ -434,21 +491,25 @@ const switchCamera = async () => {
 };
 
 // 動画ファイルのインポートと再生開始
-const handleVideoUpload = (event) => {
+const handleVideoUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
-    // ストリームの停止
     stopMediaStream();
     webcamRunning = true;
     isVideoMode = true;
+    isImageMode = false;
     updateMirrorMode();
-
-    // 動画モードに切り替え
-    video.src = URL.createObjectURL(file);
-    video.controls = true; // スマホでの操作性を高めるためにコントローラーを有効化
     
-    // UIの切り替え
+    await setRunningMode("VIDEO");
+
+    // グラフのリセットと非表示
+    analysisHistory = [];
+    chartSection.classList.remove("active");
+
+    video.src = URL.createObjectURL(file);
+    video.controls = true;
+    
     statusDot.classList.add("active");
     toggleBtn.innerHTML = `
         <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -458,10 +519,277 @@ const handleVideoUpload = (event) => {
     `;
     toggleBtn.className = "panel-btn secondary-btn";
     switchCameraBtn.disabled = true;
+    recordBtn.disabled = true;
 
     video.addEventListener("loadeddata", () => {
         video.play();
         predictWebcam();
+    });
+
+    // 再生完了時にグラフを表示
+    video.addEventListener("ended", () => {
+        showChartSection();
+    }, { once: true });
+};
+
+// 静静画のアップロードと姿勢解析 (写真撮影 / ファイル読み込み)
+const handleImageUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    stopMediaStream();
+    webcamRunning = false;
+    isVideoMode = false;
+    isImageMode = true;
+    updateMirrorMode();
+    chartSection.classList.remove("active");
+
+    loadingScreen.classList.remove("inactive");
+    loadingStatus.innerText = "写真を解析中...";
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const img = new Image();
+        img.onload = async () => {
+            await setRunningMode("IMAGE");
+
+            // キャンバスサイズを画像解像度に同期
+            canvasElement.width = img.width;
+            canvasElement.height = img.height;
+            
+            // 画像を描画
+            canvasCtx.drawImage(img, 0, 0, img.width, img.height);
+            
+            try {
+                // 画像から姿勢を検出
+                const results = poseLandmarker.detect(img);
+                
+                loadingScreen.classList.add("inactive");
+
+                if (results.landmarks && results.landmarks.length > 0) {
+                    poseDetectedVal.innerText = "画像解析完了";
+                    poseDetectedVal.classList.add("active");
+
+                    const landmarks = results.landmarks[0];
+                    
+                    // 骨格描画
+                    drawingUtils.drawConnectors(
+                        landmarks, 
+                        PoseLandmarker.POSE_CONNECTIONS, 
+                        { color: "#9d00ff", lineWidth: 4 }
+                    );
+                    drawingUtils.drawLandmarks(
+                        landmarks, 
+                        { color: "#00f0ff", lineWidth: 2, radius: 4 }
+                    );
+
+                    // HUDの角度表示を即時更新
+                    updateHudAngles(landmarks);
+                } else {
+                    poseDetectedVal.innerText = "未検出";
+                    poseDetectedVal.classList.remove("active");
+                    alert("姿勢を検出できませんでした。全身が写っている写真を使用してください。");
+                }
+            } catch (imageErr) {
+                loadingScreen.classList.add("inactive");
+                console.error("Image detection error:", imageErr);
+                alert("写真の解析中にエラーが発生しました。");
+            }
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+};
+
+// 録画機能の制御
+const toggleRecording = () => {
+    if (!webcamRunning || isVideoMode) return;
+
+    const isRecording = mediaRecorder && mediaRecorder.state === "recording";
+    if (isRecording) {
+        stopRecording();
+    } else {
+        startRecording();
+    }
+};
+
+// 録画の開始
+const startRecording = () => {
+    recordedBlobs = [];
+    const stream = video.srcObject;
+    if (!stream) return;
+
+    let options = { mimeType: 'video/webm;codecs=vp9' };
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: 'video/webm;codecs=vp8' };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+            options = { mimeType: 'video/webm' };
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                options = { mimeType: 'video/mp4' };
+            }
+        }
+    }
+
+    try {
+        mediaRecorder = new MediaRecorder(stream, options);
+    } catch (e) {
+        console.error('Exception while creating MediaRecorder:', e);
+        alert('このブラウザ/デバイスは録画に対応していません。');
+        return;
+    }
+
+    mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+            recordedBlobs.push(event.data);
+        }
+    };
+
+    mediaRecorder.onstop = () => {
+        const superBuffer = new Blob(recordedBlobs, { type: 'video/webm' });
+        const videoURL = window.URL.createObjectURL(superBuffer);
+        
+        // 録画データをセットして自動的に「事後解析」モードへ移行
+        stopMediaStream();
+        webcamRunning = true;
+        isVideoMode = true;
+        isImageMode = false;
+        updateMirrorMode();
+        
+        // グラフと軌跡のリセット
+        analysisHistory = [];
+        chartSection.classList.remove("active");
+        
+        video.src = videoURL;
+        video.controls = true;
+        
+        video.addEventListener("loadeddata", () => {
+            video.play();
+            predictWebcam();
+        }, { once: true });
+        
+        // 再生が終了したらグラフを表示
+        video.addEventListener("ended", () => {
+            showChartSection();
+        }, { once: true });
+    };
+
+    mediaRecorder.start();
+    recordBtn.classList.add("recording");
+    document.getElementById("record-btn-text").innerText = "録画停止";
+};
+
+// 録画の停止
+const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+    }
+    recordBtn.classList.remove("recording");
+    document.getElementById("record-btn-text").innerText = "録画開始";
+};
+
+// グラフ描画制御
+const showChartSection = () => {
+    if (analysisHistory.length === 0) {
+        alert("時系列データがありません。動画を解析してください。");
+        return;
+    }
+    chartSection.classList.add("active");
+    renderChart();
+};
+
+const renderChart = () => {
+    if (analysisHistory.length === 0) return;
+
+    const ctx = document.getElementById('jointChart').getContext('2d');
+    const select1Val = chartSelect1.value;
+    const select2Val = chartSelect2.value;
+
+    const labels = analysisHistory.map(d => `${d.time}s`);
+    const datasets = [];
+
+    // グラフ 1 (実線) のデータを抽出
+    const leftData1 = analysisHistory.map(d => d.angles[select1Val]?.left);
+    const rightData1 = analysisHistory.map(d => d.angles[select1Val]?.right);
+    const label1 = chartSelect1.options[chartSelect1.selectedIndex].text;
+
+    datasets.push({
+        label: `${label1} (左)`,
+        data: leftData1,
+        borderColor: '#00f0ff',
+        backgroundColor: 'rgba(0, 240, 255, 0.05)',
+        borderWidth: 2,
+        tension: 0.15,
+        fill: false
+    });
+    datasets.push({
+        label: `${label1} (右)`,
+        data: rightData1,
+        borderColor: '#00a0ff',
+        backgroundColor: 'rgba(0, 160, 255, 0.05)',
+        borderWidth: 2,
+        tension: 0.15,
+        fill: false
+    });
+
+    // グラフ 2 (破線) が選択されていれば抽出
+    if (select2Val !== 'none') {
+        const leftData2 = analysisHistory.map(d => d.angles[select2Val]?.left);
+        const rightData2 = analysisHistory.map(d => d.angles[select2Val]?.right);
+        const label2 = chartSelect2.options[chartSelect2.selectedIndex].text;
+
+        datasets.push({
+            label: `${label2} (左)`,
+            data: leftData2,
+            borderColor: '#9d00ff',
+            borderDash: [5, 5],
+            backgroundColor: 'rgba(157, 0, 255, 0.05)',
+            borderWidth: 2,
+            tension: 0.15,
+            fill: false
+        });
+        datasets.push({
+            label: `${label2} (右)`,
+            data: rightData2,
+            borderColor: '#ff00d0',
+            borderDash: [5, 5],
+            backgroundColor: 'rgba(255, 0, 208, 0.05)',
+            borderWidth: 2,
+            tension: 0.15,
+            fill: false
+        });
+    }
+
+    if (jointChart) {
+        jointChart.destroy();
+    }
+
+    jointChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#f0f3ff', font: { size: 10 } }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#8a8f9f', font: { size: 9 } }
+                },
+                y: {
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#8a8f9f', font: { size: 9 } },
+                    min: 0,
+                    max: 180
+                }
+            }
+        }
     });
 };
 
@@ -519,16 +847,34 @@ const initPoseLandmarker = async () => {
 // Event Listeners
 toggleBtn.addEventListener("click", toggleWebcam);
 switchCameraBtn.addEventListener("click", switchCamera);
+recordBtn.addEventListener("click", toggleRecording);
 uploadVideoBtn.addEventListener("click", () => videoFileInput.click());
+uploadImageBtn.addEventListener("click", () => imageFileInput.click());
+
 videoFileInput.addEventListener("change", handleVideoUpload);
+imageFileInput.addEventListener("change", handleImageUpload);
+
+closeChartBtn.addEventListener("click", () => {
+    chartSection.classList.remove("active");
+});
+
+chartSelect1.addEventListener("change", renderChart);
+chartSelect2.addEventListener("change", renderChart);
 
 // 関節切り替え時にも角度表示を即時クリア/再計算させる
 jointSelect.addEventListener("change", () => {
     leftAngleVal.innerText = "--°";
     rightAngleVal.innerText = "--°";
+    
+    // 静止画モードの場合は、その場で即再計算して描画
+    if (isImageMode && imageFileInput.files[0]) {
+        // 再ロードをトリガー
+        const fileEvent = { target: { files: [imageFileInput.files[0]] } };
+        handleImageUpload(fileEvent);
+    }
 });
 
-// Disable Start button initially until model is loaded
+// Disable buttons initially until model is loaded
 toggleBtn.disabled = true;
 
 // Start initialization
