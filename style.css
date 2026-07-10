@@ -197,7 +197,7 @@ body {
 #webcam {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain; /* アスペクト比を完全に維持して歪みを防止 */
 }
 
 #output_canvas {
@@ -206,110 +206,97 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
+    object-fit: contain; /* ビデオとアスペクト比を完全に同期 */
     pointer-events: none;
     z-index: 2;
 }
 
-/* HUD Overlay */
+/* HUD Overlay (Compact horizontal floating bar overlaying video) */
 .hud-overlay {
-    position: relative;
-    margin: 4px 16px 8px 16px;
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
     display: flex;
     flex-direction: row;
-    gap: 8px;
-    z-index: 5;
-}
-
-.hud-card {
-    background: rgba(20, 22, 37, 0.4);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    padding: 8px 12px;
-    border-radius: 12px;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    justify-content: center;
-}
-
-#pose-status-card {
-    flex: 0 0 100px;
     align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.hud-bar-item {
+    background: rgba(10, 11, 20, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 6px 10px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    height: 36px;
+}
+
+.status-box {
+    flex: 0 0 70px;
+    font-size: 10px;
+    font-weight: 700;
     text-align: center;
 }
 
-#angle-card {
-    flex: 1;
-}
-
-.hud-label {
-    font-size: 9px;
+#pose-detected {
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 2px;
 }
 
-.hud-value {
-    font-size: 14px;
-    font-weight: 600;
+#pose-detected.active {
+    color: var(--text-active);
+    text-shadow: 0 0 5px var(--text-active);
 }
 
-/* HUD Selection Dropdown & Angle display styles */
-.hud-select {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 8px;
+.select-box {
+    flex: 1;
+    pointer-events: auto; /* ドロップダウンをタップ可能にする */
+}
+
+.hud-select-compact {
+    background: transparent;
+    border: none;
     color: var(--text-main);
-    padding: 6px 8px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    margin-top: 2px;
     outline: none;
     cursor: pointer;
     width: 100%;
-    pointer-events: auto;
     font-family: var(--font-sans);
 }
 
-.hud-select optgroup {
+.hud-select-compact optgroup {
     background-color: var(--bg-surface-opaque);
     color: var(--text-muted);
 }
 
-.hud-select option {
+.hud-select-compact option {
     background-color: var(--bg-surface-opaque);
     color: var(--text-main);
 }
 
-.angle-display-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    margin-top: 6px;
-}
-
-.angle-val-box {
-    flex: 1;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-    padding: 4px 6px;
-    text-align: center;
+.value-box {
+    flex: 0 0 65px;
     font-size: 11px;
     font-weight: 600;
     color: var(--text-muted);
 }
 
-.angle-val-box span {
-    font-size: 15px;
+.value-box span {
+    font-size: 13px;
     font-weight: 800;
     color: var(--primary);
     font-family: monospace;
-    display: block;
-    margin-top: 1px;
-    text-shadow: 0 0 10px var(--primary-glow);
+    margin-left: 2px;
+    text-shadow: 0 0 8px var(--primary-glow);
 }
 
 /* Control Panel */

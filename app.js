@@ -311,8 +311,8 @@ const predictWebcam = async () => {
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
             if (results.landmarks && results.landmarks.length > 0) {
-                poseDetectedVal.innerText = isVideoMode ? "動画解析中" : "検出中";
-                poseDetectedVal.style.color = "var(--text-active)";
+                poseDetectedVal.innerText = isVideoMode ? "分析中" : "検出中";
+                poseDetectedVal.classList.add("active");
                 
                 const landmarks = results.landmarks[0];
                 
@@ -331,7 +331,7 @@ const predictWebcam = async () => {
                 updateHudAngles(landmarks);
             } else {
                 poseDetectedVal.innerText = "未検出";
-                poseDetectedVal.style.color = "var(--text-muted)";
+                poseDetectedVal.classList.remove("active");
                 leftAngleVal.innerText = "--°";
                 rightAngleVal.innerText = "--°";
             }
