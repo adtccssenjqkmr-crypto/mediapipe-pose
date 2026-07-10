@@ -223,14 +223,15 @@
     </section>
 
     <!-- Core App Logic -->
-    <script type="module" src="app.js?v=9"></script>
+    <script type="module" src="app_v9.js?v=9"></script>
     <script>
-        // Register Service Worker for PWA
+        // Force Unregister old Service Workers to clear caching issues
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js?v=9')
-                    .then(reg => console.log('Service Worker registered.', reg))
-                    .catch(err => console.error('Service Worker registration failed.', err));
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                    console.log('Old Service Worker unregistered successfully.');
+                }
             });
         }
     </script>
