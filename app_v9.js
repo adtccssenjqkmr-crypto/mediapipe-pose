@@ -48,6 +48,10 @@ const chartSelect1 = document.getElementById("chart-select-1");
 const chartSelect2 = document.getElementById("chart-select-2");
 const showChartBtn = document.getElementById("show-chart-btn");
 const skeletonOnlyBtn = document.getElementById("skeleton-only-btn");
+const chartRangeStart = document.getElementById("chart-range-start");
+const chartRangeEnd = document.getElementById("chart-range-end");
+const rangeStartVal = document.getElementById("range-start-val");
+const rangeEndVal = document.getElementById("range-end-val");
 
 // App State
 let poseLandmarker = undefined;
@@ -539,12 +543,6 @@ const handleVideoUpload = async (event) => {
 
     video.addEventListener("loadeddata", () => {
         video.play();
-        predictWebcam();
-    });
-
-    // 再生完了時にグラフを表示
-    video.addEventListener("ended", () => {
-        showChartSection();
     }, { once: true });
 };
 
@@ -687,12 +685,6 @@ const startRecording = () => {
         
         video.addEventListener("loadeddata", () => {
             video.play();
-            predictWebcam();
-        }, { once: true });
-        
-        // 再生が終了したらグラフを表示
-        video.addEventListener("ended", () => {
-            showChartSection();
         }, { once: true });
     };
 
@@ -747,12 +739,23 @@ const renderChart = () => {
         const select1Val = chartSelect1.value;
         const select2Val = chartSelect2.value;
 
-        const labels = analysisHistory.map(d => `${d.time}s`);
+        const minTime = parseFloat(chartRangeStart.value);
+        const maxTime = parseFloat(chartRangeEnd.value);
+
+        // 開始時間と終了時間の整合性を保つ
+        if (minTime > maxTime) {
+            chartRangeStart.value = maxTime;
+        }
+
+        const filteredHistory = analysisHistory.filter(d => d.time >= minTime && d.time <= maxTime);
+        if (filteredHistory.length === 0) return;
+
+        const labels = filteredHistory.map(d => `${d.time}s`);
         const datasets = [];
 
         // グラフ 1 (実線) のデータを抽出
-        const leftData1 = analysisHistory.map(d => d.angles[select1Val]?.left);
-        const rightData1 = analysisHistory.map(d => d.angles[select1Val]?.right);
+        const leftData1 = filteredHistory.map(d => d.angles[select1Val]?.left);
+        const rightData1 = filteredHistory.map(d => d.angles[select1Val]?.right);
         const label1 = chartSelect1.options[chartSelect1.selectedIndex].text;
 
         datasets.push({
@@ -776,8 +779,8 @@ const renderChart = () => {
 
         // グラフ 2 (破線) が選択されていれば抽出
         if (select2Val !== 'none') {
-            const leftData2 = analysisHistory.map(d => d.angles[select2Val]?.left);
-            const rightData2 = analysisHistory.map(d => d.angles[select2Val]?.right);
+            const leftData2 = filteredHistory.map(d => d.angles[select2Val]?.left);
+            const rightData2 = filteredHistory.map(d => d.angles[select2Val]?.right);
             const label2 = chartSelect2.options[chartSelect2.selectedIndex].text;
 
             datasets.push({
@@ -911,6 +914,45 @@ closeChartBtn.addEventListener("click", () => {
 chartSelect1.addEventListener("change", renderChart);
 chartSelect2.addEventListener("change", renderChart);
 showChartBtn.addEventListener("click", showChartSection);
+
+// グラフ表示時間範囲スライダーの入力イベント監視
+const onRangeChange = () => {
+    const minT = parseFloat(chartRangeStart.value);
+    const maxT = parseFloat(chartRangeEnd.value);
+    
+    if (minT > maxT) {
+        chartRangeStart.value = maxT;
+    }
+    
+    rangeStartVal.innerText = parseFloat(chartRangeStart.value).toFixed(1);
+    rangeEndVal.innerText = parseFloat(chartRangeEnd.value).toFixed(1);
+    
+    renderChart();
+};
+
+chartRangeStart.addEventListener("input", onRangeChange);
+chartRangeEnd.addEventListener("input", onRangeChange);
+
+// フリーズ防止: 動画の再生・一時停止・終了状態にメイン姿勢推定ループを完全に連動
+video.addEventListener("play", () => {
+    if (isVideoMode) {
+        webcamRunning = true;
+        predictWebcam();
+    }
+});
+
+video.addEventListener("pause", () => {
+    if (isVideoMode) {
+        webcamRunning = false;
+    }
+});
+
+video.addEventListener("ended", () => {
+    if (isVideoMode) {
+        webcamRunning = false;
+        showChartSection();
+    }
+});
 
 skeletonOnlyBtn.addEventListener("click", () => {
     skeletonOnlyMode = !skeletonOnlyMode;

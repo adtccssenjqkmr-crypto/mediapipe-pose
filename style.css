@@ -524,3 +524,69 @@ body {
     border-color: rgba(0, 240, 255, 0.4) !important;
     box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
 }
+
+/* Chart Range Sliders Styles */
+.chart-range-row {
+    display: flex;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 10px 12px;
+    border-radius: 12px;
+}
+
+.range-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.range-box label {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+}
+
+.range-box label span {
+    color: var(--primary);
+    font-weight: 700;
+    font-family: monospace;
+}
+
+/* Customizing Input Range look */
+.range-box input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+}
+
+.range-box input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--primary-glow);
+    transition: transform 0.1s ease;
+}
+
+.range-box input[type="range"]::-webkit-slider-thumb:active {
+    transform: scale(1.2);
+}
+
+.range-box input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border: none;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--primary-glow);
+}
